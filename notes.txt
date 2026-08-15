@@ -1,0 +1,358 @@
+RAG Notes
+=========
+
+RAG is not an AI generation technique. It is a way to give a large
+language model access to external information at inference time.
+
+Inference time = the moment you use the trained model to produce an answer.
+
+
+1. LLM Phases
+-------------
+
+An LLM has two phases:
+
+1. Training time
+2. Inference time
+
+Training time:
+
+    huge datasets -> training -> model weights
+
+During training, the model is trained on huge datasets such as books, code,
+websites, papers, and other documents.
+
+This can take weeks or months and requires massive compute.
+
+The model's parameters are adjusted during training.
+
+Inference time:
+
+    your question -> trained model -> answer
+
+Training is finished. Now you give the model an input and ask it to do
+something.
+
+Example:
+
+    You type: "Explain gradient descent."
+    The model generates: "Gradient descent is an optimization algorithm..."
+
+
+2. The Fundamental Limitation of LLMs
+-------------------------------------
+
+An LLM fundamentally computes something like:
+
+    P(x_t+1 | x_1, x_2, ..., x_t)
+
+It predicts the next token based on the tokens it currently has.
+
+Its knowledge comes mainly from patterns learned during training.
+
+That creates a hard distinction:
+
+Training time:
+
+    books
+    web pages
+    papers
+    code
+    documents
+        -> model weights
+
+Versus inference time:
+
+    your question
+    model weights
+        -> answer
+
+Suppose your company has:
+
+    employee_policy.pdf
+
+And it contains:
+
+    Employees may work remotely up to 3 days per week.
+
+The base model does not magically know this document.
+
+Even if it understands English perfectly, it has no mechanism to retrieve your
+specific private document unless you provide the information somehow.
+
+This is the first-principles reason RAG exists.
+
+
+3. Three Ways to Give a Model Information
+-----------------------------------------
+
+Imagine asking:
+
+    What is our company's remote work policy?
+
+There are three major approaches.
+
+
+A. Put the Information Into the Prompt
+-------------------------------------
+
+Example:
+
+    User: According to this policy:
+    [entire policy]
+
+    What is the remote work limit?
+
+This is prompting / long-context inference.
+
+It works, but problems appear when the knowledge base becomes very large:
+
+    10 documents
+    1,000 documents
+    100,000 documents
+
+You do not want to send the entire corporate knowledge base to the model for
+every question.
+
+
+B. Train or Fine-Tune the Model on the Information
+-------------------------------------------------
+
+Flow:
+
+    documents -> training -> model weights
+
+Now the information is encoded into the model's parameters.
+
+This sounds attractive, but suppose the policy changes:
+
+    3 days/week -> 5 days/week
+
+Do you retrain the model?
+
+That is a terrible mechanism for constantly changing factual information.
+
+Fine-tuning is generally better suited to changing behavior, style, task
+capability, or domain adaptation than acting as a giant mutable database.
+
+
+C. Retrieve the Relevant Information at Inference Time
+-----------------------------------------------------
+
+This is RAG:
+
+    question -> find relevant information -> give that information to the LLM
+             -> generate answer
+
+The model retrieves what it needs when it needs it.
+
+That is the key idea.
+
+
+4. RAG = Retrieval + Generation
+-------------------------------
+
+Retrieval:
+
+    find useful information
+
+Notation:
+
+    q = user query
+    D_k = top-k relevant documents or chunks
+
+Generation:
+
+    give the retrieved pieces to the model
+
+Flow:
+
+    q, D_k -> answer
+
+Complete mechanism:
+
+    knowledge -> retriever -> relevant evidence -> LLM -> answer
+                                                        ^
+                                                        |
+                                                    question
+
+This is RAG at the most fundamental level.
+
+
+5. Why Not Just Ask the LLM?
+----------------------------
+
+Because an LLM has two very different kinds of knowledge.
+
+
+Parametric Knowledge
+--------------------
+
+Knowledge encoded implicitly in model parameters.
+
+Example:
+
+    Question: What is the capital of India?
+    Answer: New Delhi
+
+The model may already know this.
+
+
+External / Non-Parametric Knowledge
+-----------------------------------
+
+Information stored somewhere outside the model.
+
+Example:
+
+    What does page 47 of our 2026 insurance policy say?
+
+The model needs access to that source.
+
+RAG provides that access.
+
+
+6. The Most Important Mental Model
+----------------------------------
+
+Think of the LLM as a brilliant reasoning engine, not a perfect database.
+
+LLM:
+
+    - language understanding
+    - reasoning
+    - synthesis
+    - summarization
+    - generation
+
+External system:
+
+    - documents
+    - databases
+    - policies
+    - research papers
+    - information
+
+RAG connects these two:
+
+    external knowledge -> retrieval -> LLM -> reasoning -> answer
+
+
+7. RAG Does Not Magically Eliminate Hallucinations
+-------------------------------------------------
+
+This is critical.
+
+Suppose retrieval returns garbage:
+
+    question -> bad retrieval -> wrong chunks -> LLM -> confident wrong answer
+
+RAG can make an LLM more grounded, but retrieval itself can fail.
+
+Therefore:
+
+    RAG quality = retrieval quality * generation quality
+
+
+8. RAG vs Search
+----------------
+
+Isn't RAG just Google Search?
+
+Not quite.
+
+Search answers:
+
+    query -> relevant documents
+
+RAG continues:
+
+    query -> relevant documents -> LLM reads them -> synthesized answer
+
+Search retrieves.
+
+RAG retrieves and reasons or generates over the retrieved information.
+
+Example:
+
+    A search engine might return:
+    "policy document section 7"
+
+    A RAG system might return:
+    "Customers can cancel within 30 days..."
+
+That is a major distinction.
+
+
+9. RAG vs Fine-Tuning
+---------------------
+
+Imagine you want your model to answer in a company's specific format.
+
+That is a behavior problem.
+
+Fine-tuning can make sense.
+
+But:
+
+    Our policy changed yesterday.
+
+That is a knowledge retrieval problem.
+
+RAG is usually the better mechanism.
+
+Fine-tuning:
+
+    - changes how the model behaves
+
+RAG:
+
+    - changes what information the model can access
+
+
+10. The Hidden Problem RAG Creates
+----------------------------------
+
+The naive mental model:
+
+    document -> RAG -> correct answer
+
+The actual system is closer to:
+
+    document
+      -> parsing
+      -> chunking
+      -> representation
+      -> index
+      -> retrieval
+      -> ranking
+      -> context build
+      -> LLM
+      -> final answer
+
+RAG is a pipeline of information retrieval decisions.
+
+
+11. Our First Engineering Question
+----------------------------------
+
+For every RAG component, ask:
+
+    What information is being transformed, and why does that information
+    improve retrieval or generation?
+
+Examples:
+
+Chunking:
+
+    huge document -> smaller semantic units
+
+Because retrieval needs to identify specific relevant information, not an
+entire 400+ page document.
+
+Embeddings:
+
+    text -> vector
+
+Because vectors provide a mathematical representation we can use to compare
+semantic similarity.
